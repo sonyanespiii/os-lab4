@@ -1,91 +1,58 @@
 #!/usr/bin/env bash
-# Регрессионный набор тестов os-lab4. Read-only по data/.
 cd "$(dirname "$0")/.." || exit 1
-REPORT="report.txt"; : > "$REPORT"
-PASS=0; FAIL=0
-log(){ echo "$@" | tee -a "$REPORT"; }
-ok(){ PASS=$((PASS+1)); log "[PASS] $1"; }
-bad(){ FAIL=$((FAIL+1)); log "[FAIL] $1"; }
-GROUPS="A-06-04 A-09-23"
+R="report.txt"; : > "$R"; P=0; F=0
+t(){ echo "$1" | tee -a "$R"; [ "$2" = "ok" ] && P=$((P+1)) || F=$((F+1)); }
 
-# --- 1. Аргументы ---
-./main.sh --help 2>&1 | grep -qi "group" && ok "--help печатает справку" || bad "--help не печатает справку"
-./main.sh 2>&1 | grep -q "Ошибка\|Использование" && ok "без аргументов -> ошибка/справка" || bad "без аргументов нет реакции"
-./main.sh --group A-06-04 2>&1 | grep -q "Ошибка" && ok "неполные аргументы -> ошибка" || bad "неполные аргументы без ошибки"
+./main.sh --help 2>&1 | grep -qi "group" && t "--help: справка" "ok" || t "--help: нет справки" "fail"
+./main.sh 2>&1 | grep -q "Ошибка\|Использование" && t "без аргументов: ошибка" "ok" || t "без аргументов: нет ошибки" "fail"
+./main.sh --group A-06-04 2>&1 | grep -q "Ошибка" && t "неполные аргументы: ошибка" "ok" || t "неполные: нет ошибки" "fail"
 
-for g in $GROUPS; do
-  gf="data/students/groups/$g"
-  [ -f "$gf" ] || { bad "группа $g: файл не найден"; continue; }
+for g in A-06-04 A-09-23; do
+  f="data/students/groups/$g"
+  [ -f "$f" ] || { t "$g: файл не найден" "fail"; continue; }
 
-  # --- 2. max-surname ---
-  out=$(./main.sh --group "$g" --max-surname 2>&1)
-  stu=$(echo "$out" | sed -n 's/^Студент: //p' | head -1)
-  len=$(echo "$out" | grep -o 'длина: [0-9]*' | grep -o '[0-9]*' | head -1)
-  if grep -qx "$stu" "$gf" && [ -n "$len" ]; then
-    alen=$(printf %s "$stu" | wc -m | tr -d ' ')
-    maxlen=0
-    while read -r t; do
-      tl=$(printf %s "$t" | wc -m | tr -d ' '); [ "$tl" -gt "$maxlen" ] && maxlen=$tl
-    done < "$gf"
-    if [ "$len" = "$alen" ] && [ "$len" = "$maxlen" ]; then ok "$g --max-surname: $stu ($len)";
-    else bad "$g --max-surname: длина/максимум не совпадают (вывел $len, максимум $maxlen)"; fi
-  else bad "$g --max-surname: студент не из группы или нет длины"; fi
+  o=$(./main.sh --group "$g" --max-surname 2>&1)
+  s=$(echo "$o" | sed -n 's/^Студент: //p' | head -1)
+  l=$(echo "$o" | grep -o 'длина: [0-9]*' | grep -o '[0-9]*' | head -1)
+  if grep -qx "$s" "$f" && [ -n "$l" ]; then
+    al=$(printf %s "$s" | tr -d '\r' | wc -m | tr -d ' ')
+    ml=0; while read -r x; do tl=$(printf %s "$x" | tr -d '\r' | wc -m | tr -d ' '); [ "$tl" -gt "$ml" ] && ml=$tl; done < "$f"
+    [ "$l" = "$al" ] && [ "$l" = "$ml" ] && t "$g max-surname: $s ($l)" "ok" || t "$g max-surname: длина $l != максимум $ml" "fail"
+  else t "$g max-surname: студент не из группы" "fail"; fi
 
-  # --- 3. sort attendance ---
-  out=$(./main.sh --group "$g" --sort attendance 2>&1)
-  dup=$(echo "$out" | awk '{print $1}' | sort | uniq -d | head -1)
-  [ -n "$dup" ] && bad "$g attendance: дубликат строки $dup" || ok "$g attendance: дубликатов нет"
-  zb=0
-  while read -r n; do
+  o=$(./main.sh --group "$g" --sort attendance 2>&1)
+  d=$(echo "$o" | awk '{print $1}' | sort | uniq -d | head -1)
+  [ -z "$d" ] && t "$g attendance: нет дубликатов" "ok" || t "$g attendance: дубликат $d" "fail"
+  z=0; while read -r n; do
     ones=$(grep -h "^${n} " data/*/*-attendance 2>/dev/null | tr -cd '1' | wc -c | tr -d ' ')
-    if [ "$ones" -gt 0 ]; then
-      num=$(echo "$out" | grep -m1 "^${n} " | awk '{print $2}')
-      [ "${num:-0}" -eq 0 ] && zb=1
-    fi
-  done < "$gf"
-  [ "$zb" -eq 0 ] && ok "$g attendance: счётчики ненулевые" || bad "$g attendance: нули при единицах в журнале (регрессия)"
+    [ "$ones" -gt 0 ] && { num=$(echo "$o" | grep -m1 "^${n} " | awk '{print $2}'); [ "${num:-0}" -eq 0 ] && z=1; }
+  done < "$f"
+  [ "$z" -eq 0 ] && t "$g attendance: счётчики ненулевые" "ok" || t "$g attendance: нули (регрессия)" "fail"
 
-  # --- 4. dossier ---
-  n=""; while read -r c; do
-    grep -hq ";${c};" data/*/tests/TEST-* 2>/dev/null && { n=$c; break; }
-  done < "$gf"; [ -z "$n" ] && n=$(head -1 "$gf")
-  out=$(./main.sh --student "$n" --dossier 2>&1)
-
-  # 4a. Характеристика
-  letter=${n:0:1}; nf="data/students/general/notes/${letter}Names.log"
-  ch=$(echo "$out" | sed -n '/\[Характеристика\]/{n;p}')
+  n=""; while read -r c; do grep -hq ";${c};" data/*/tests/TEST-* 2>/dev/null && { n=$c; break; }; done < "$f"
+  [ -z "$n" ] && n=$(head -1 "$f")
+  o=$(./main.sh --student "$n" --dossier 2>&1)
+  lt=${n:0:1}; nf="data/students/general/notes/${lt}Names.log"
+  ch=$(echo "$o" | sed -n '/\[Характеристика\]/{n;p}')
   if grep -qx "$n" "$nf" 2>/dev/null; then
-    case "$ch" in
-      *"log-"*|data/*) bad "$n dossier: характеристика с префиксом файла" ;;
-      "Отсутствует.")  bad "$n dossier: характеристика есть в ${letter}Names.log, выведено 'Отсутствует.'" ;;
-      *) ok "$n dossier: характеристика чистая" ;;
-    esac
-  else
-    [ "$ch" = "Отсутствует." ] && ok "$n dossier: нет характеристики -> 'Отсутствует.'" || bad "$n dossier: странная строка характеристики"
-  fi
+    case "$ch" in *"log-"*|data/*) t "$n dossier: префикс файла" "fail" ;; "Отсутствует.") t "$n dossier: нет характеристики" "fail" ;; *) t "$n dossier: характеристика чистая" "ok" ;; esac
+  else [ "$ch" = "Отсутствует." ] && t "$n dossier: нет характеристики -> 'Отсутствует.'" "ok" || t "$n dossier: странная характеристика" "fail"; fi
 
-  # 4b. Пропуски
-  maxl=0; zeros=0
-  for f in data/*/*-attendance; do
-    s=$(grep -h "^${n} " "$f" 2>/dev/null | head -1 | cut -d' ' -f2); [ -z "$s" ] && continue
-    l=${#s}; [ "$l" -gt "$maxl" ] && maxl=$l
-    echo "$s" | grep -q '0' && zeros=1
+  ml=0; z=0; for af in data/*/*-attendance; do
+    s=$(grep -h "^${n} " "$af" 2>/dev/null | head -1 | cut -d' ' -f2); [ -z "$s" ] && continue
+    [ "${#s}" -gt "$ml" ] && ml=${#s}; echo "$s" | grep -q '0' && z=1
   done
-  nums=$(echo "$out" | sed -n 's/^Номера пропущенных занятий: //p' | head -1)
-  if [ "$zeros" -eq 1 ]; then
-    over=0; [ -z "$nums" ] && over=1
-    IFS=',' read -ra arr <<< "$nums"
-    for x in "${arr[@]}"; do [ "$x" -gt "$maxl" ] 2>/dev/null && over=1; done
-    [ "$over" -eq 0 ] && ok "$n dossier: номера пропусков <= $maxl" || bad "$n dossier: номера пропусков > $maxl (склейка предметов)"
-  else
-    echo "$out" | grep -q "Пропусков не зафиксировано" && ok "$n dossier: нет пропусков -> сообщение" || bad "$n dossier: нет пропусков, но сообщения нет"
-  fi
+  nums=$(echo "$o" | sed -n 's/^Номера пропущенных занятий: //p' | head -1)
+  if [ "$z" -eq 1 ]; then
+    ov=0; [ -z "$nums" ] && ov=1; IFS=',' read -ra ar <<< "$nums"
+    for x in "${ar[@]}"; do [ "$x" -gt "$ml" ] 2>/dev/null && ov=1; done
+    [ "$ov" -eq 0 ] && t "$n dossier: пропуски <= $ml" "ok" || t "$n dossier: пропуски > $ml (склейка)" "fail"
+  else echo "$o" | grep -q "Пропусков не зафиксировано" && t "$n dossier: нет пропусков -> сообщение" "ok" || t "$n dossier: нет пропусков, нет сообщения" "fail"; fi
 
-  # 4c. Успеваемость
-  if grep -hq ";${n};" data/*/tests/TEST-* 2>/dev/null; then
-    echo "$out" | grep "Средний балл:" | grep -q "[0-9]" && ok "$n dossier: средний балл посчитан" || bad "$n dossier: записи TEST есть, но 'Средний балл: нет данных'"
-  fi
+  grep -hq ";${n};" data/*/tests/TEST-* 2>/dev/null && {
+    echo "$o" | grep "Средний балл:" | grep -q "[0-9]" && t "$n dossier: средний балл посчитан" "ok" || t "$n dossier: TEST есть, балл 'нет данных'" "fail"
+  }
 done
 
-log "-----"; log "PASS=$PASS FAIL=$FAIL"
-[ "$FAIL" -eq 0 ] && exit 0 || exit 1
+echo "-----" | tee -a "$R"; echo "PASS=$P FAIL=$F" | tee -a "$R"
+[ "$F" -eq 0 ] && exit 0 || exit 1
