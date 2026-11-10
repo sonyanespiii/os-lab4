@@ -1,4 +1,4 @@
 COMMAND: ./main.sh --group A-06-04 --max-surname
 EXPECT:
 Студент: Surovtsev-ButovA
-Фамилия: Surovtsev-ButovA (длина: 15 символов)
+Фамилия: Surovtsev-Butov (длина: 15 символов)
