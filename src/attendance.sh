@@ -23,8 +23,12 @@ get_attendance() {
     return 1
   fi
 
-  while IFS= read -r student; do
-    count=$(grep -E "^${student} " "$att_file" 2>/dev/null | grep -o "1" | wc -l)
-    printf "%d\t%s\n" "$count" "$student"
-  done < "$group_file" | sort -rn -k1,1 | awk -F'\t' '{print $2, $1, "посещений"}'
+  tr -d '\r' < "$group_file" | sort -u | grep -v '^$' | \
+  xargs -I{} sh -c '
+    name="{}"
+    count=$(grep -E "^${name} " "$1" 2>/dev/null | tr -cd "1" | wc -c)
+    printf "%d\t%s\n" "$count" "$name"
+  ' _ "$att_file" | \
+  sort -rn -k1,1 | \
+  sed -E 's/^([0-9]+)[[:space:]]+(.+)$/\2 \1 посещений/'
 }

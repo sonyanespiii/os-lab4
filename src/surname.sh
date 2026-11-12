@@ -14,38 +14,25 @@ get_max_surname() {
     echo "Ошибка: список группы '$group' пуст." >&2
     return 1
   fi
+  
+  local result
+  result=$(tr -d '\r' < "$group_file" | \
+    grep -v '^$' | \
+    xargs -I {} sh -c '
+      surname=$(echo "{}" | grep -oE "^[A-ZА-ЯЁ][a-zа-яё]*(-[A-ZА-ЯЁ][a-zа-яё]*)*")
+      if [ -z "$surname" ]; then surname="{}"; fi
+      len=$(printf "%s" "$surname" | wc -c | tr -d " ")
+      printf "%s\t%s\t%s\n" "$len" "{}" "$surname"
+    ' | \
+    sort -t$'\t' -k1,1rn | \
+    head -1)
 
-  local max_len=0
-  local max_student=""
-  local max_surname=""
-
-  while IFS= read -r student || [[ -n "$student" ]]; do
-    student="${student//$'\r'/}"
-    [[ -z "$student" ]] && continue
-
-    # Отрезаем ВСЕ заглавные буквы с конца строки (инициалы)
-    # Регулярка: захватываем всё до последней строчной буквы включительно,
-    # затем отрезаем все заглавные буквы до конца строки
-    local surname
-    surname=$(echo "$student" | sed -E 's/(.*[a-zа-яё])[A-ZА-ЯЁ]+$/\1/')
-    
-    # Если регулярка не сработала (нет заглавных в конце), оставляем строку как есть
-    if [[ "$surname" == "$student" ]]; then
-        surname="$student"
-    fi
-
-    local len=${#surname}
-    
-    if (( len > max_len )); then
-      max_len=$len
-      max_student=$student
-      max_surname=$surname
-    fi
-  done < "$group_file"
-
-  if [[ -n "$max_student" ]]; then
-    echo "Студент: $max_student"
-    echo "Фамилия: $max_surname (длина: $max_len символов)"
+  if [[ -n "$result" ]]; then
+    local len=$(printf "%s" "$result" | cut -f1)
+    local original=$(printf "%s" "$result" | cut -f2)
+    local surname=$(printf "%s" "$result" | cut -f3)
+    echo "Студент: $original"
+    echo "Фамилия: $surname (длина: $len символов)"
   else
     echo "Ошибка: не удалось определить студента." >&2
     return 1

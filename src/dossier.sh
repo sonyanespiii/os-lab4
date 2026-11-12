@@ -22,29 +22,51 @@ get_dossier() {
   fi
 
   echo ""
+  
   echo "[Пропуски]"
-  local seq
-  seq=$(grep -E -h "^${student} " data/*/*-attendance 2>/dev/null | cut -d' ' -f2 | tr -d '\n')
-  if [[ -n "$seq" ]]; then
-    local missed
-    missed=$(echo "$seq" | grep -bo '0' | awk -F: '{print $1+1}' | paste -sd, -)
-    if [[ -n "$missed" ]]; then
-      echo "Номера пропущенных занятий: $missed"
-    else
-      echo "Пропусков не зафиксировано."
+  local found_absences=0
+  
+  local seq1
+  seq1=$(grep -E -h "^${student} " data/Пересдачеведение/*-attendance 2>/dev/null | cut -d' ' -f2 | tr -d '\n')
+  if [[ -n "$seq1" ]]; then
+    local missed1
+    missed1=$(echo "$seq1" | grep -bo '0' | cut -d: -f1 | xargs -I{} expr {} + 1 | paste -sd' ' -)
+    if [[ -n "$missed1" ]]; then
+      echo "Пересдачеведение: $missed1"
+      found_absences=1
     fi
-  else
+  fi
+  
+  local seq2
+  seq2=$(grep -E -h "^${student} " data/Цирковое_Дело/*-attendance 2>/dev/null | cut -d' ' -f2 | tr -d '\n')
+  if [[ -n "$seq2" ]]; then
+    local missed2
+    missed2=$(echo "$seq2" | grep -bo '0' | cut -d: -f1 | xargs -I{} expr {} + 1 | paste -sd' ' -)
+    if [[ -n "$missed2" ]]; then
+      echo "Цирковое_Дело: $missed2"
+      found_absences=1
+    fi
+  fi
+  
+  if [[ $found_absences -eq 0 ]]; then
     echo "Пропусков не зафиксировано."
   fi
 
   echo ""
+  
   echo "[Успеваемость]"
   local grades
-  grades=$(grep -E "^[^;]+;${student};" data/*/tests/TEST-* 2>/dev/null | cut -d';' -f5 | tr -dc '0-9\n')
+  grades=$(grep -E -h "^[^;]+;${student};" data/*/tests/TEST-* 2>/dev/null | cut -d';' -f5 | grep -E '^[0-9]+$')
   if [[ -n "$grades" ]]; then
-    local avg_info
-    avg_info=$(echo "$grades" | awk '{sum+=$1; count++} END {if(count>0) printf "%d %d %.2f", sum, count, sum/count; else print "0 0 0"}')
-    read -r sum count avg <<< "$avg_info"
+    local sum_expr
+    sum_expr=$(echo "$grades" | paste -sd+ -)
+    local sum
+    sum=$(echo "$sum_expr" | bc)
+    local count
+    count=$(echo "$grades" | wc -l | tr -d ' ')
+    local avg
+    avg=$(echo "scale=2; $sum / $count" | bc)
+    
     if (( count > 0 )); then
       echo "Средний балл: ${avg} (всего оценок: $count, сумма: $sum)"
     else
@@ -55,12 +77,25 @@ get_dossier() {
   fi
 
   echo ""
+  
   echo "[Задолженности]"
-  local debts
-  debts=$(grep -E -H "^[^;]+;${student};" data/*/tests/TEST-* 2>/dev/null | grep -E ";[12][+-]*$" | cut -d':' -f1 | cut -d'/' -f2 | sort -u | paste -sd, -)
-  if [[ -n "$debts" ]]; then
-    echo "Предметы с задолженностями: $debts"
-  else
+  local found_debts=0
+  
+  local debts1
+  debts1=$(grep -E -h "^[^;]+;${student};" data/Пересдачеведение/tests/TEST-* 2>/dev/null | grep -E ";[12][+-]*$" | cut -d';' -f3 | sort | paste -sd', ' -)
+  if [[ -n "$debts1" ]]; then
+    echo "Пересдачеведение: $debts1"
+    found_debts=1
+  fi
+  
+  local debts2
+  debts2=$(grep -E -h "^[^;]+;${student};" data/Цирковое_Дело/tests/TEST-* 2>/dev/null | grep -E ";[12][+-]*$" | cut -d';' -f3 | sort | paste -sd', ' -)
+  if [[ -n "$debts2" ]]; then
+    echo "Цирковое_Дело: $debts2"
+    found_debts=1
+  fi
+  
+  if [[ $found_debts -eq 0 ]]; then
     echo "Задолженности: нет"
   fi
 }
