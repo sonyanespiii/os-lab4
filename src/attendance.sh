@@ -23,12 +23,14 @@ get_attendance() {
     return 1
   fi
 
-  tr -d '\r' < "$group_file" | sort -u | grep -v '^$' | \
-  xargs -I{} sh -c '
-    name="{}"
-    count=$(grep -E "^${name} " "$1" 2>/dev/null | tr -cd "1" | wc -c)
-    printf "%d\t%s\n" "$count" "$name"
-  ' _ "$att_file" | \
-  sort -rn -k1,1 | \
-  sed -E 's/^([0-9]+)[[:space:]]+(.+)$/\2 \1 посещений/'
+  sort -u "$group_file" | while IFS= read -r student; do
+    student="${student//$'\r'/}"
+    [[ -z "$student" ]] && continue
+    
+    local count
+    count=$(grep -E "^${student} " "$att_file" 2>/dev/null | tr -cd '1' | wc -c)
+    echo "$count $student"
+  done | sort -rn | while read -r count student; do
+    echo "$student $count посещений"
+  done
 }
