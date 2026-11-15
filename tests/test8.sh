@@ -1,16 +1,16 @@
 COMMAND: ./main.sh --group A-09-23 --sort attendance
 EXPECT:
-LitvichenkoYD 18 посещений
-IvashutaYA 15 посещений
-DavydovaYP 15 посещений
-SharapovMN 14 посещений
-LopatinAV 14 посещений
-LevshchanovB 14 посещений
-KaraliusDD 13 посещений
-DrugovskyaYM 13 посещений
-TikhonovVK 12 посещений
-NikonovII 12 посещений
-NaimanAM 12 посещений
-BazhenovNS 12 посещений
-YurkovaSM 11 посещений
-NesterovVD 11 посещений
+LitvichenkoYD 36 посещений
+LopatinAV 30 посещений
+IvashutaYA 29 посещений
+KaraliusDD 29 посещений
+LevshchanovB 28 посещений
+NaimanAM 28 посещений
+SharapovMN 28 посещений
+DavydovaYP 27 посещений
+DrugovskyaYM 27 посещений
+NesterovVD 27 посещений
+BazhenovNS 26 посещений
+NikonovII 24 посещений
+YurkovaSM 23 посещений
+TikhonovVK 21 посещение
