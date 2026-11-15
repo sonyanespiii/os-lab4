@@ -10,27 +10,21 @@ get_attendance() {
     return 1
   fi
 
-  if [[ ! -s "$group_file" ]]; then
-    echo "Ошибка: список группы '$group' пуст." >&2
+  local att_files=(data/*/"${group}-attendance")
+
+  if [[ ! -e "${att_files[0]}" ]]; then
+    echo "Ошибка: файлы посещаемости для группы '$group' не найдены." >&2
     return 1
   fi
 
-  local att_file
-  att_file=$(find data -type f -name "${group}-attendance" 2>/dev/null | head -n 1)
-
-  if [[ -z "$att_file" ]]; then
-    echo "Ошибка: файл посещаемости для группы '$group' не найден." >&2
-    return 1
-  fi
-
-  sort -u "$group_file" | while IFS= read -r student; do
-    student="${student//$'\r'/}"
+  cat "$group_file" | while read student; do
     [[ -z "$student" ]] && continue
     
     local count
-    count=$(grep -E "^${student} " "$att_file" 2>/dev/null | tr -cd '1' | wc -c)
+    count=$(cat "${att_files[@]}" 2>/dev/null | grep "^${student} " | tr -cd '1' | wc -c)
+    
     echo "$count $student"
-  done | sort -rn | while read -r count student; do
+  done | sort -rn | while read count student; do
     echo "$student $count посещений"
   done
 }
