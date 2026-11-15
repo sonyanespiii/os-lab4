@@ -13,8 +13,10 @@ get_dossier() {
   echo ""
   
   echo "[Характеристика]"
+  local first_char="${student:0:1}"
   local note
-  note=$(sed -n "/^${student}$/{n;p;}" data/students/general/notes/*Names.log 2>/dev/null)
+  note=$(grep -A 1 "^${student}$" "data/students/general/notes/${first_char}Names.log" 2>/dev/null | tail -n 1)
+
   if [[ -n "$note" ]]; then
     echo "$note"
   else
@@ -82,7 +84,7 @@ get_dossier() {
   
   echo "[Задолженности]"
   local found_debts=0
-  
+
   for subject in "Пересдачеведение" "Цирковое_Дело"; do
     local test_dir="data/${subject}/tests"
     if [[ -d "$test_dir" ]]; then
@@ -91,12 +93,10 @@ get_dossier() {
       for test_file in "$test_dir"/TEST-*; do
         [[ -f "$test_file" ]] || continue
         
-        if grep -E -q "^[^;]+;${student};" "$test_file" 2>/dev/null; then
-          if grep -E "^[^;]+;${student};" "$test_file" | grep -qE ";[12][+-]*$"; then
-            local test_name
-            test_name=$(basename "$test_file" | sed -E 's/TEST-([0-9]+)/тест №\1/')
-            debts+=("$test_name")
-          fi
+        if grep -E "^[^;]+;${student};" "$test_file" 2>/dev/null | grep -qE ";[012][+-]*$"; then
+          local test_name
+          test_name=$(basename "$test_file" | sed -E 's/TEST-([0-9]+)/тест №\1/')
+          debts+=("$test_name")
         fi
       done
       
@@ -108,7 +108,7 @@ get_dossier() {
       fi
     fi
   done
-  
+
   if [[ $found_debts -eq 0 ]]; then
     echo "Задолженности: нет"
   fi
