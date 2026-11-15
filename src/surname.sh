@@ -5,13 +5,8 @@ get_max_surname() {
   local group=$1
   local group_file="data/students/groups/${group}"
 
-  if [[ ! -f "$group_file" ]]; then
-    echo "Ошибка: список группы '$group' не найден." >&2
-    return 1
-  fi
-
   if [[ ! -s "$group_file" ]]; then
-    echo "Ошибка: список группы '$group' пуст." >&2
+    echo "Ошибка: список группы '$group' не найден." >&2
     return 1
   fi
 
@@ -19,23 +14,22 @@ get_max_surname() {
   local max_student=""
   local max_surname=""
 
-  while IFS= read -r student || [[ -n "$student" ]]; do
-    student="${student//$'\r'/}"
+  while read student || [[ -n "$student" ]]; do
     [[ -z "$student" ]] && continue
 
     local surname
-    surname=$(echo "$student" | grep -oE '^[A-ZА-ЯЁ][a-zа-яё]*(-[A-ZА-ЯЁ][a-zа-яё]*)*')
+    surname=$(grep -oE '^[A-ZА-ЯЁ][a-zа-яё]*(-[A-ZА-ЯЁ][a-zа-яё]*)*' <<< "$student")
     
     if [[ -z "$surname" ]]; then
-        surname="$student"
+      surname="$student"
     fi
 
     local len=${#surname}
     
     if (( len > max_len )); then
       max_len=$len
-      max_student=$student
-      max_surname=$surname
+      max_student="$student"
+      max_surname="$surname"
     fi
   done < "$group_file"
 
